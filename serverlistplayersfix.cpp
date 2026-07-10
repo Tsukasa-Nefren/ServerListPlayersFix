@@ -49,6 +49,13 @@ IVEngineServer* engine = NULL;
 IServerGameClients* gameclients = NULL;
 CGameEntitySystem* g_pEntitySystem = nullptr;
 
+class CCSPlayerController : public CBasePlayerController
+{
+public:
+	DECLARE_SCHEMA_CLASS(CCSPlayerController);
+	SCHEMA_FIELD(int32_t, m_iScore)
+};
+
 CGameEntitySystem* GameEntitySystem()
 {
 #ifdef WIN32
@@ -105,12 +112,11 @@ void ServerListPlayersFix::UpdatePlayers()
 
 	for (int i = 0; i < gpGlobals->maxClients; i++)
 	{
-		auto steamId = engine->GetClientSteamID(CPlayerSlot(i));
-		if (steamId)
+		auto controller = (CCSPlayerController*)g_pEntitySystem->GetEntityInstance(CEntityIndex(i+1));
+		if (controller && controller->IsConnected() && controller->m_steamID() != 0)
 		{
-			auto controller = (CBasePlayerController*)g_pEntitySystem->GetEntityInstance(CEntityIndex(i+1));
-			if(controller)
-				g_steamAPI.SteamGameServer()->BUpdateUserData(*steamId, controller->GetPlayerName(), gameclients->GetPlayerScore(CPlayerSlot(i)));
+			CSteamID steamId(controller->m_steamID());
+			g_steamAPI.SteamGameServer()->BUpdateUserData(steamId, controller->GetPlayerName(), controller->m_iScore());
 		}
 	}
 }
