@@ -46,8 +46,14 @@ ICvar *icvar = NULL;
 CSteamGameServerAPIContext g_steamAPI;
 IServerGameDLL* server = NULL;
 IVEngineServer* engine = NULL;
-IServerGameClients* gameclients = NULL;
 CGameEntitySystem* g_pEntitySystem = nullptr;
+
+class CCSPlayerController : public CBasePlayerController
+{
+public:
+	DECLARE_SCHEMA_CLASS(CCSPlayerController);
+	SCHEMA_FIELD(int32_t, m_iScore)
+};
 
 CGameEntitySystem* GameEntitySystem()
 {
@@ -69,7 +75,6 @@ bool ServerListPlayersFix::Load(PluginId id, ISmmAPI *ismm, char *error, size_t 
 	GET_V_IFACE_ANY(GetServerFactory, g_pSource2Server, ISource2Server, SOURCE2SERVER_INTERFACE_VERSION);
 	GET_V_IFACE_ANY(GetServerFactory, server, IServerGameDLL, INTERFACEVERSION_SERVERGAMEDLL);
 	GET_V_IFACE_CURRENT(GetEngineFactory, engine, IVEngineServer, INTERFACEVERSION_VENGINESERVER);
-	GET_V_IFACE_ANY(GetServerFactory, gameclients, IServerGameClients, INTERFACEVERSION_SERVERGAMECLIENTS);
 	GET_V_IFACE_CURRENT(GetEngineFactory, g_pSchemaSystem, ISchemaSystem, SCHEMASYSTEM_INTERFACE_VERSION);
 	GET_V_IFACE_ANY(GetEngineFactory, g_pNetworkServerService, INetworkServerService, NETWORKSERVERSERVICE_INTERFACE_VERSION);
 	GET_V_IFACE_CURRENT(GetEngineFactory, g_pGameResourceServiceServer, IGameResourceService, GAMERESOURCESERVICESERVER_INTERFACE_VERSION);
@@ -105,12 +110,11 @@ void ServerListPlayersFix::UpdatePlayers()
 
 	for (int i = 0; i < gpGlobals->maxClients; i++)
 	{
-		auto steamId = engine->GetClientSteamID(CPlayerSlot(i));
-		if (steamId)
+		auto controller = (CCSPlayerController*)g_pEntitySystem->GetEntityInstance(CEntityIndex(i+1));
+		if (controller && controller->IsConnected() && controller->m_steamID() != 0)
 		{
-			auto controller = (CBasePlayerController*)g_pEntitySystem->GetEntityInstance(CEntityIndex(i+1));
-			if(controller)
-				g_steamAPI.SteamGameServer()->BUpdateUserData(*steamId, controller->GetPlayerName(), gameclients->GetPlayerScore(CPlayerSlot(i)));
+			CSteamID steamId(controller->m_steamID());
+			g_steamAPI.SteamGameServer()->BUpdateUserData(steamId, controller->GetPlayerName(), controller->m_iScore());
 		}
 	}
 }
